@@ -1,0 +1,19 @@
+/* thumbnails below pictures in one row please */
+.pictureThumbnails {
+  height: 180px;
+  white-space: nowrap;
+  overflow: auto;
+}
+/* some indication for hover is nice as well - with fading effect :-) */
+.pictureThumbnails .thumbnail {
+  opacity: 0.7;
+  transition: opacity 0.3s linear;
+}
+.pictureThumbnails .thumbnail:hover {
+  opacity: 1.0;
+  transition: opacity 0.3s linear;
+}
+.pictureThumbnails .thumbnails .wrap1 {
+  margin: 0;
+  padding: 0;
+}
