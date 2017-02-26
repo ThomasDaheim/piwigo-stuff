@@ -256,9 +256,30 @@ function add_openstreetmap()
     $content .= '</a>';
     $template->add_picture_button($content);
     // code for this is included in picture.tpl
-    
+
+    // TF, 20161026: in case we show a gpx or kml we now have included leaflet.js twice :-(
+	// once from osm-gpx.tpl and once from osm-category.tpl
+	// so we need to find that and remove one of the includes (along with leaflet.css)
+	cleanup_html_head();
+
     //print_r('rendered');
   }
+}
+
+function cleanup_html_head()
+{
+    global $template;
+
+    // the variable in $template we're looking for is "html_head_elements"
+    // and its an array with one entry for each *.tpl that had a {html_head} section
+    if ( count($template->html_head_elements) )
+    {
+        // combine array elements into one AND split @ newline AND create a unique array
+        //$unique_html_head_elements = array_unique( explode( "\n", implode( "\n", $template->html_head_elements ) ) );
+        //print_r($unique_html_head_elements);
+
+        $template->html_head_elements = array_unique( explode( "\n", implode( "\n", $template->html_head_elements ) ) );
+    }
 }
 
 ?>
