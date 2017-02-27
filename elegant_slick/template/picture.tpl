@@ -21,18 +21,25 @@
 <div class="actionButtons">
 {if isset($current.unique_derivatives) && count($current.unique_derivatives)>1}
 {footer_script require='jquery'}{literal}
-function changeImgSrc(url,typeSave,typeMap)
+function changeImgSrc(url,typeSave,typeMap,imgSize)
 {
-	var theImg = document.getElementById("theMainImage");
-	if (theImg)
-	{
-		theImg.removeAttribute("width");theImg.removeAttribute("height");
-		theImg.src = url;
-		theImg.useMap = "#map"+typeMap;
-	}
-	jQuery('#derivativeSwitchBox .switchCheck').css('visibility','hidden');
-	jQuery('#derivativeChecked'+typeMap).css('visibility','visible');
-	document.cookie = 'picture_deriv='+typeSave+';path={/literal}{$COOKIE_PATH}{literal}';
+  var imageSize = JSON.parse(imgSize);
+  var theMainImage = document.getElementById("theMainImage");
+  if (theMainImage)
+  {
+    theMainImage.removeAttribute("width");theMainImage.removeAttribute("height");
+    theMainImage.src = url;
+    theMainImage.useMap = "#map"+typeMap;
+  
+    var theImage = document.getElementById("theImage");
+    if (theImage)
+    {
+      theImage.style.height = imageSize[1]+'px';
+    }
+  }
+  jQuery('#derivativeSwitchBox .switchCheck').css('visibility','hidden');
+  jQuery('#derivativeChecked'+typeMap).css('visibility','visible');
+  document.cookie = 'picture_deriv='+typeSave+';path={/literal}{$COOKIE_PATH}{literal}';
 }
 (SwitchBox=window.SwitchBox||[]).push("#derivativeSwitchLink", "#derivativeSwitchBox");
 {/literal}{/footer_script}
@@ -43,7 +50,7 @@ function changeImgSrc(url,typeSave,typeMap)
   <div class="switchBoxTitle">{'Photo sizes'|@translate}</div>
   {foreach from=$current.unique_derivatives item=derivative key=derivative_type}
   <span class="switchCheck" id="derivativeChecked{$derivative->get_type()}"{if $derivative->get_type() ne $current.selected_derivative->get_type()} style="visibility:hidden"{/if}>&#x2714; </span>
-  <a href="javascript:changeImgSrc('{$derivative->get_url()|@escape:javascript}','{$derivative_type}','{$derivative->get_type()}')">
+  <a href="javascript:changeImgSrc('{$derivative->get_url()|@escape:javascript}','{$derivative_type}','{$derivative->get_type()}','{$derivative->get_size()|@json_encode}')">
     {$derivative->get_type()|@translate}<span class="derivativeSizeDetails"> ({$derivative->get_size_hr()})</span>
   </a><br>
   {/foreach}
