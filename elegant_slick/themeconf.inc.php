@@ -1,7 +1,7 @@
 <?php
 /*
 Theme Name: Elegant Slick
-Version: 0.0.1
+Version: 1.0.0
 Description: Various upates: No category page, thumbnails on picture page, openstreetmap from category on picture page, maximize panoramas
 Theme URI: 
 Author: Thomas Feuster
@@ -14,12 +14,23 @@ $themeconf = array(
   'load_parent_local_head' => true,
   'url' => 'http://bilder.feuster.com/'
 );
+// Need upgrade?
+global $conf;
+include(PHPWG_THEMES_PATH.'elegant_slick/admin/upgrade.inc.php');
+
+add_event_handler('init', 'elegant_slick_set_config_values');
+function elegant_slick_set_config_values()
+{
+  global $conf, $template;
+  $config = safe_unserialize( $conf['elegant_slick'] );
+  $template->assign( 'elegant_slick', $config );
+}
 
 /*
 Panorama in original size
 */
-add_event_handler('render_element_content', 'panorama_original_size', EVENT_HANDLER_PRIORITY_NEUTRAL+5);
-function panorama_original_size($content, $element_info)
+add_event_handler('render_element_content', 'elegant_slick_pano_max_size', EVENT_HANDLER_PRIORITY_NEUTRAL+5);
+function elegant_slick_pano_max_size($content, $element_info)
 {
   global $conf, $page, $template;
   
@@ -30,7 +41,7 @@ function panorama_original_size($content, $element_info)
     $width = $element_info['width'];
     $height = $element_info['height'];
     
-    // store with for later use...
+    // store values for later use...
     if (isset($template->get_template_vars('current')['selected_derivative']))
     {
       $real_image_size = $template->get_template_vars('current')['selected_derivative']->get_size();
@@ -50,7 +61,16 @@ function panorama_original_size($content, $element_info)
       // set real size from the dimensions of this derivative - can't think of anything better to do
       $real_image_size = ImageStdParams::get_by_type($derivative_type)->sizing->ideal_size;
     }
+  
+    // store real width for further use
+    $template->assign('real_image_size', $real_image_size);
 
+	// check, if we should do anything
+	if ( !isset($template->get_template_vars('elegant_slick')['p_max_pano']) or
+		$template->get_template_vars('elegant_slick')['p_max_pano'] == 'off')
+	{
+		return $content;
+	}
 
     if ($height > 0 && $width/$height > 3.5 && isset($template->get_template_vars('current')['selected_derivative']))
     {
@@ -80,8 +100,8 @@ function panorama_original_size($content, $element_info)
       // src="_data/i/galleries/Lissabon 2016/img_5945_dpp_stitch-me.jpg" width="792" height="98" usemap="#mapmedium" 
       
       // 1: image url
-      $replacement = 'src="'.$ideal_derivative->get_url().'"';
-      $search = '/src=\".*?\"/';
+      $replacement = '<img src="'.$ideal_derivative->get_url().'"';
+      $search = '/<img src=\".*?\"/';
       $content = preg_replace($search, $replacement, $content);
       
       // 2: width
@@ -96,9 +116,65 @@ function panorama_original_size($content, $element_info)
       $content = preg_replace($search, $replacement, $content);
       
       // 4: usemap
-      $replacement = 'usemap="'.$ideal_derivative->get_type().'"';
+      $replacement = 'usemap="#map'.$ideal_derivative->get_type().'"';
       $search = '/usemap=\".*?\"/';
       $content = preg_replace($search, $replacement, $content);
+	  
+	  // 5: switch "data-class" from current derivative to new one
+	  // 5.1: get current and new "map" definition
+	  $current_search = '/<map name=\"map'.$derivative_type.'\">.*?map>/';
+      //print_r($current_search);
+	  if (preg_match($current_search, $content, $current_match_array))
+	  {
+		  $current_match = $current_match_array[0];
+		  //print_r($current_match);
+		  $ideal_search = '/<map name=\"map'.$ideal_derivative->get_type().'\">.*?map>/';
+		  //print_r($ideal_search);
+		  if (preg_match($ideal_search, $content, $ideal_match_array))
+		  {
+			  $ideal_match = $ideal_match_array[0];
+			  //print_r($ideal_match);
+			  // 5.2 check for prevImage, upImage, nextImage data-class entries and shift them each from curent to new "map" definition
+			  // 5.2.a replace 'area data-class="prevImage"' with 'area' and so on AND check if something was replaced
+			  $replacement = 'area';
+			  $search = 'area data-class="prevImage"';
+			  $current_match = str_replace($search, $replacement, $current_match, $prevCount);
+			  $replacement = 'area';
+			  $search = 'area data-class="upImage"';
+			  $current_match = str_replace($search, $replacement, $current_match, $upCount);
+			  $replacement = 'area';
+			  $search = 'area data-class="nextImage"';
+			  $current_match = str_replace($search, $replacement, $current_match, $nextCount);
+
+			  // 5.2.b now add 'data-class="prevImage"' and so on ONLY if they have been replaced previously
+			  if ($prevCount == 1)
+			  {
+				  $replacement = 'area data-class="prevImage" shape';
+				  // always find the next "area" without a data-class after it :-)
+				  $search = 'area  shape';
+				  $startPos = strpos($ideal_match, $search);
+				  $ideal_match = substr_replace($ideal_match, $replacement, $startPos, strlen($search));
+			  }
+			  if ($upCount == 1)
+			  {
+				  $replacement = 'area data-class="upImage" shape';
+				  $search = 'area  shape';
+				  $startPos = strpos($ideal_match, $search);
+				  $ideal_match = substr_replace($ideal_match, $replacement, $startPos, strlen($search));
+			  }
+			  if ($nextCount == 1)
+			  {
+				  $replacement = 'area data-class="nextImage" shape';
+				  $search = 'area  shape';
+				  $startPos = strpos($ideal_match, $search);
+				  $ideal_match = substr_replace($ideal_match, $replacement, $startPos, strlen($search));
+			  }
+			  
+			  // 5.3: replace curent and new definitions
+			  $content = preg_replace($current_search, $current_match, $content);
+			  $content = preg_replace($ideal_search, $ideal_match, $content);
+		  }
+	  }
       
       //print_r($content);
       $real_image_size = $ideal_derivative->get_size();
@@ -114,22 +190,30 @@ function panorama_original_size($content, $element_info)
 /*
 No category page
 */
-add_event_handler('loc_end_index_thumbnails', 'skip_cat');
-function skip_cat($tpl_thumbnails_var)
+add_event_handler('loc_end_index_thumbnails', 'elegant_slick_skip_cat');
+function elegant_slick_skip_cat($tpl_thumbnails_var)
 {
-  //print_r('skip category');
-  global $page;
-  if (isset($page['category']))
-  {
-    redirect($tpl_thumbnails_var[0]['URL']);
-  }
+	//print_r('skip category');
+	global $page, $template;
+
+	// check, if we should do anything
+	if ( !isset($template->get_template_vars('elegant_slick')['p_no_cat_page']) or
+		$template->get_template_vars('elegant_slick')['p_no_cat_page'] == 'off')
+	{
+		return $tpl_thumbnails_var;
+	}
+
+	if (isset($page['category']))
+	{
+		redirect($tpl_thumbnails_var[0]['URL']);
+	}
 }
 
 /*
 Picture Thumbnails
 */
-add_event_handler('loc_end_picture', 'add_thumbnails_to_template');
-function add_thumbnails_to_template()
+add_event_handler('loc_end_picture', 'elegant_slick_add_thumbs_to_pic');
+function elegant_slick_add_thumbs_to_pic()
 {
   // stuff borrowed from category_default.inc.php
   // to retrieve template data required for thumbnails
@@ -232,8 +316,8 @@ function add_thumbnails_to_template()
 /*
 Openstreetmap on picture page
 */
-add_event_handler('loc_end_picture', 'add_openstreetmap');
-function add_openstreetmap()
+add_event_handler('loc_end_picture', 'elegant_slick_add_map_to_pic');
+function elegant_slick_add_map_to_pic()
 {
   global $template, $conf, $page;
   
@@ -260,13 +344,13 @@ function add_openstreetmap()
     // TF, 20161026: in case we show a gpx or kml we now have included leaflet.js twice :-(
 	// once from osm-gpx.tpl and once from osm-category.tpl
 	// so we need to find that and remove one of the includes (along with leaflet.css)
-	cleanup_html_head();
+	elegant_slick_cleanup_html_head();
 
     //print_r('rendered');
   }
 }
 
-function cleanup_html_head()
+function elegant_slick_cleanup_html_head()
 {
     global $template;
 

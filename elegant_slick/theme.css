@@ -2,13 +2,13 @@
 
 /* buttons for navigation please as well - borrowed from ad-gallery */
 .prevImage:hover, #linkPrev:hover {
-  cursor: url(ad_prev.png) 40 40, auto;
+  cursor: url(icon/ad_prev.png) 40 40, auto;
 }
 .nextImage:hover, #linkNext:hover {
-  cursor: url(ad_next.png) 40 40, auto;
+  cursor: url(icon/ad_next.png) 40 40, auto;
 }
 .upImage:hover, #linkUp:hover {
-  cursor: url(ad_up.png), auto;
+  cursor: url(icon/ad_up.png), auto;
 }
 
 /* thumbnails below pictures in one row please */
@@ -36,7 +36,7 @@ p.imageComment {
   margin: 0 auto;
   border: 0px;
   padding: 3px;
-  background-image: url(opa75.png);
+  background-image: url(icon/opa75.png);
   background-color: transparent;
   color: black;
   font-weight: bold;
