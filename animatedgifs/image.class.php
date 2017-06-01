@@ -21,7 +21,6 @@
 // | USA.                                                                  |
 // +-----------------------------------------------------------------------+
 
-
 // +-----------------------------------------------------------------------+
 // |                           Image Interface                             |
 // +-----------------------------------------------------------------------+
@@ -302,10 +301,9 @@ class pwg_image
 
     for ($i=0; $i<3; $i++)
     {
-      $line = & $matrix[$i];
       for ($j=0; $j<3; $j++)
       {
-        $line[$j] /= $norm;
+        $matrix[$i][$j] /= $norm;
       }
     }
 
@@ -513,7 +511,6 @@ class image_ext_imagick implements imageInterface
   var $height = '';
   var $commands = array();
   var $is_animated_gif = false;
-
   function __construct($source_filepath)
   {
 	global $logger;
