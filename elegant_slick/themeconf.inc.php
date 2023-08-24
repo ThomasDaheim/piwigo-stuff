@@ -1,7 +1,7 @@
 <?php
 /*
 Theme Name: Elegant Slick
-Version: 1.0.0
+Version: 0.0.1
 Description: Various upates: No category page, thumbnails on picture page, openstreetmap from category on picture page, maximize panoramas
 Theme URI: 
 Author: Thomas Feuster
@@ -18,8 +18,8 @@ $themeconf = array(
 global $conf;
 include(PHPWG_THEMES_PATH.'elegant_slick/admin/upgrade.inc.php');
 
-add_event_handler('init', 'elegant_slick_set_config_values');
-function elegant_slick_set_config_values()
+add_event_handler('init', 'set_config_values_elegant_slick');
+function set_config_values_elegant_slick()
 {
   global $conf, $template;
   $config = safe_unserialize( $conf['elegant_slick'] );
@@ -29,8 +29,8 @@ function elegant_slick_set_config_values()
 /*
 Panorama in original size
 */
-add_event_handler('render_element_content', 'elegant_slick_pano_max_size', EVENT_HANDLER_PRIORITY_NEUTRAL+5);
-function elegant_slick_pano_max_size($content, $element_info)
+add_event_handler('render_element_content', 'panorama_original_size', EVENT_HANDLER_PRIORITY_NEUTRAL+5);
+function panorama_original_size($content, $element_info)
 {
   global $conf, $page, $template;
   
@@ -72,14 +72,21 @@ function elegant_slick_pano_max_size($content, $element_info)
 		return $content;
 	}
 
-    if ($height > 0 && $width/$height > 3.5 && isset($template->get_template_vars('current')['selected_derivative']))
+	// special handling for stichted images: use max height that fits the screen instead of max width
+	$STITCHED_RATIO = 3.5;
+	$STITCHED_MINWIDTH = 1280;
+    if ($height > 0 && ($width/$height > $STITCHED_RATIO || $width > $STITCHED_MINWIDTH) && isset($template->get_template_vars('current')['selected_derivative']))
     {
       //print_r('panorama detected');
+	  //echo '<br/>';
       //print_r($element_info);
       
       // i) find out what derivative type we have and what max height value it has
       $derivative_type = $template->get_template_vars('current')['selected_derivative']->get_type();
       $ideal_height = ImageStdParams::get_by_type($derivative_type)->sizing->ideal_size[1];
+
+      //print_r($ideal_height);
+	  //echo '<br/>';
             
       // ii) find derivative with height <= $ideal_height
       foreach($element_info['derivatives'] as $type => $derivative)
@@ -89,12 +96,17 @@ function elegant_slick_pano_max_size($content, $element_info)
         if (!array_key_exists($type, ImageStdParams::get_defined_type_map()))
           continue;
         // check height against $ideal_height
+		  //print_r($derivative->get_type());
+		  //print_r($derivative->get_size()[1]);
+		  //echo '<br/>';
         if ($derivative->get_size()[1] > $ideal_height)
           continue;
         
         if (!isset($ideal_derivative) || $derivative->get_size()[1] > $ideal_derivative->get_size()[1])
           $ideal_derivative = $derivative;
       }
+      //print_r($derivative_type);
+      //print_r($ideal_derivative->get_type());
           
       // now replace the link, the width & height and the usemap from the ideal derivative
       // src="_data/i/galleries/Lissabon 2016/img_5945_dpp_stitch-me.jpg" width="792" height="98" usemap="#mapmedium" 
@@ -190,8 +202,8 @@ function elegant_slick_pano_max_size($content, $element_info)
 /*
 No category page
 */
-add_event_handler('loc_end_index_thumbnails', 'elegant_slick_skip_cat');
-function elegant_slick_skip_cat($tpl_thumbnails_var)
+add_event_handler('loc_end_index_thumbnails', 'skip_cat');
+function skip_cat($tpl_thumbnails_var)
 {
 	//print_r('skip category');
 	global $page, $template;
@@ -212,8 +224,8 @@ function elegant_slick_skip_cat($tpl_thumbnails_var)
 /*
 Picture Thumbnails
 */
-add_event_handler('loc_end_picture', 'elegant_slick_add_thumbs_to_pic');
-function elegant_slick_add_thumbs_to_pic()
+add_event_handler('loc_end_picture', 'add_thumbnails_to_template');
+function add_thumbnails_to_template()
 {
   // stuff borrowed from category_default.inc.php
   // to retrieve template data required for thumbnails
@@ -316,8 +328,8 @@ function elegant_slick_add_thumbs_to_pic()
 /*
 Openstreetmap on picture page
 */
-add_event_handler('loc_end_picture', 'elegant_slick_add_map_to_pic');
-function elegant_slick_add_map_to_pic()
+add_event_handler('loc_end_picture', 'add_openstreetmap');
+function add_openstreetmap()
 {
   global $template, $conf, $page;
   
@@ -344,13 +356,13 @@ function elegant_slick_add_map_to_pic()
     // TF, 20161026: in case we show a gpx or kml we now have included leaflet.js twice :-(
 	// once from osm-gpx.tpl and once from osm-category.tpl
 	// so we need to find that and remove one of the includes (along with leaflet.css)
-	elegant_slick_cleanup_html_head();
+	cleanup_html_head();
 
     //print_r('rendered');
   }
 }
 
-function elegant_slick_cleanup_html_head()
+function cleanup_html_head()
 {
     global $template;
 
