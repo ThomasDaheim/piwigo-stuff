@@ -1,24 +1,9 @@
 <?php
 // +-----------------------------------------------------------------------+
-// | Piwigo - a PHP based photo gallery                                    |
-// +-----------------------------------------------------------------------+
-// | Copyright(C) 2008-2016 Piwigo Team                  http://piwigo.org |
-// | Copyright(C) 2003-2008 PhpWebGallery Team    http://phpwebgallery.net |
-// | Copyright(C) 2002-2003 Pierrick LE GALL   http://le-gall.net/pierrick |
-// +-----------------------------------------------------------------------+
-// | This program is free software; you can redistribute it and/or modify  |
-// | it under the terms of the GNU General Public License as published by  |
-// | the Free Software Foundation                                          |
+// | This file is part of Piwigo.                                          |
 // |                                                                       |
-// | This program is distributed in the hope that it will be useful, but   |
-// | WITHOUT ANY WARRANTY; without even the implied warranty of            |
-// | MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU      |
-// | General Public License for more details.                              |
-// |                                                                       |
-// | You should have received a copy of the GNU General Public License     |
-// | along with this program; if not, write to the Free Software           |
-// | Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, |
-// | USA.                                                                  |
+// | For copyright and license information, please view the COPYING.txt    |
+// | file that was distributed with this source code.                      |
 // +-----------------------------------------------------------------------+
 
 // +-----------------------------------------------------------------------+
@@ -374,8 +359,8 @@ class pwg_image
           return 'imagick';
         }
       case 'ext_imagick':
-	    // TF, 20170225: handle gif like any other format
-        //if ($extension != 'gif' and self::is_ext_imagick())
+		// TFE, 20170226: ext_imagick can also handle gifs...
+        // if ($extension != 'gif' and self::is_ext_imagick())
         if (self::is_ext_imagick())
         {
           return 'ext_imagick';
@@ -511,9 +496,9 @@ class image_ext_imagick implements imageInterface
   var $height = '';
   var $commands = array();
   var $is_animated_gif = false;
+
   function __construct($source_filepath)
   {
-	global $logger;
     global $conf;
     $this->source_filepath = $source_filepath;
     $this->imagickdir = $conf['ext_imagick_dir'];
@@ -523,11 +508,12 @@ class image_ext_imagick implements imageInterface
       @putenv('MAGICK_THREAD_LIMIT=1');
     }
 
-	// TF, 20170225: support for animated gifs: only check first image
-    //$command = $this->imagickdir.'identify -format "%wx%h" "'.realpath($source_filepath).'[0]"';
-    $command = $this->imagickdir.'identify -ping -format "%wx%h" "'.realpath($source_filepath).'[0]"';
+	// TFE, 20170226: identify -format gives output for each pic &lt;- trouble with gifs
+    // $command = $this->imagickdir.'identify -format "%wx%h" "'.realpath($source_filepath).'"';
+    $command = $this->imagickdir.'identify -format "%wx%hx%n" "'.realpath($source_filepath).'"';
     @exec($command, $returnarray);
-    if(!is_array($returnarray) or empty($returnarray[0]) or !preg_match('/^(\d+)x(\d+)$/', $returnarray[0], $match))
+    // if(!is_array($returnarray) or empty($returnarray[0]) or !preg_match('/^(\d+)x(\d+)$/', $returnarray[0], $match))
+    if(!is_array($returnarray) or empty($returnarray[0]) or !preg_match('/^(\d+)x(\d+)x(\d+).*$/', $returnarray[0], $match))
     {
       die("[External ImageMagick] Corrupt image\n" . var_export($returnarray, true));
     }
@@ -535,30 +521,11 @@ class image_ext_imagick implements imageInterface
     $this->width = $match[1];
     $this->height = $match[2];
 	
-	// TF, 20170225: check for animated gif (gif with more than one image are considered to be animated)
+    // TFE, 20170226: gif extension and more than one image =&gt; animated gif
     $extension = strtolower(get_extension($source_filepath));
-    if ($extension == 'gif')
-    {
-		$command = $this->imagickdir.'identify -ping -format "%n" "'.realpath($source_filepath).'"';
-		@exec($command, $returnarray);
-		// this returns an array with first element width x height and second element no. of images
-		if(!is_array($returnarray) or (count($returnarray) < 2) or empty($returnarray[1]) or !preg_match('/^(\d+)$/', $returnarray[1], $match))
-		{
-		  die("[External ImageMagick] Corrupt image\n" . var_export($returnarray, true));
-		}
-		if ($match[0] > 1)
-		{
-			$this->is_animated_gif = true;
-			// whatever you plan to do - convert gif images to full size ones first
-			$this->add_command('coalesce');
-		}
+    if ($extension == 'gif' and $match[3] != '1') {
+		$this->is_animated_gif = true;
     }
-	if ($logger->severity() >= Logger::DEBUG)
-	{
-	  $logger->debug('', 'image.class.php', array(
-		'__construct - is_animated_gif' => $this->is_animated_gif,
-		));
-	}
   }
 
   function add_command($command, $params=null)
@@ -621,9 +588,7 @@ class image_ext_imagick implements imageInterface
     $this->height = $height;
 
     $this->add_command('filter', 'Lanczos');
-	// TF, 20170601: Faster resize in image_ext_imagick #636
-    $this->add_command('thumbnail', $width.'x'.$height.'!');
-    //$this->add_command('resize', $width.'x'.$height.'!');
+    $this->add_command('resize', $width.'x'.$height.'!');
     return true;
   }
 
@@ -656,11 +621,13 @@ class image_ext_imagick implements imageInterface
   {
     global $logger;
 
+
 	// TFE, 20170226: interlacing doesn't work for animated gifs
-	if (!$this->is_animated_gif)
-	{
+    if (!$this->is_animated_gif)
+    {
 		$this->add_command('interlace', 'line'); // progressive rendering
-	}
+    }
+
     // use 4:2:2 chroma subsampling (reduce file size by 20-30% with "almost" no human perception)
     //
     // option deactivated for Piwigo 2.4.1, it doesn't work fo old versions
@@ -673,11 +640,11 @@ class image_ext_imagick implements imageInterface
       $this->add_command('sampling-factor', '4:2:2' );
     }
 
-	// TFE, 20170226: last step is to optimize the individual images
-	if ($this->is_animated_gif)
-	{
+    // TFE, 20170226: last step is to optimize the individual images
+    if ($this->is_animated_gif)
+    {
 		$this->add_command('layers', 'OptimizePlus');
-	}
+    }	
 
     $exec = $this->imagickdir.'convert';
     $exec .= ' "'.realpath($this->source_filepath).'"';
@@ -693,12 +660,12 @@ class image_ext_imagick implements imageInterface
 
     $dest = pathinfo($destination_filepath);
     $exec .= ' "'.realpath($dest['dirname']).'/'.$dest['basename'].'" 2>&1';
-    $logger->debug($exec, 'image.class.php');
+    $logger->debug($exec, 'i.php');
     @exec($exec, $returnarray);
 
     if (is_array($returnarray) && (count($returnarray)>0) )
     {
-      $logger->error('', 'image.class.php', $returnarray);
+      $logger->error('', 'i.php', $returnarray);
       foreach ($returnarray as $line)
         trigger_error($line, E_USER_WARNING);
     }
