@@ -508,11 +508,14 @@ class image_ext_imagick implements imageInterface
       @putenv('MAGICK_THREAD_LIMIT=1');
     }
 
-	// TFE, 20170226: identify -format gives output for each pic &lt;- trouble with gifs
     // $command = $this->imagickdir.'identify -format "%wx%h" "'.realpath($source_filepath).'"';
+	// TFE, 20170226: identify -format gives output for each pic -> trouble with gifs
+	// so we add the "%n" parameter which indicates how many images are included in the file
     $command = $this->imagickdir.'identify -format "%wx%hx%n" "'.realpath($source_filepath).'"';
     @exec($command, $returnarray);
+
     // if(!is_array($returnarray) or empty($returnarray[0]) or !preg_match('/^(\d+)x(\d+)$/', $returnarray[0], $match))
+	// TFE, 20240217: we have added areturn value in the -format command, so we need to update the regexp as well
     if(!is_array($returnarray) or empty($returnarray[0]) or !preg_match('/^(\d+)x(\d+)x(\d+).*$/', $returnarray[0], $match))
     {
       die("[External ImageMagick] Corrupt image\n" . var_export($returnarray, true));
@@ -521,7 +524,7 @@ class image_ext_imagick implements imageInterface
     $this->width = $match[1];
     $this->height = $match[2];
 	
-    // TFE, 20170226: gif extension and more than one image =&gt; animated gif
+    // TFE, 20170226: gif extension and more than one image -> animated gif
     $extension = strtolower(get_extension($source_filepath));
     if ($extension == 'gif' and $match[3] != '1') {
 		$this->is_animated_gif = true;
